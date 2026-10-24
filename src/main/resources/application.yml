@@ -1,0 +1,91 @@
+# ============================================================
+# 开放平台配置（本地开发默认值）
+# 详细说明见 README.md 和 docs/backend-design.md
+# ============================================================
+
+server:
+  # 端口可用环境变量覆盖：SERVER_PORT=8082 java -jar ...
+  port: ${SERVER_PORT:8081}
+  # 优雅停机：收到 SIGTERM 后先处理完进行中的请求再退出
+  shutdown: graceful
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+
+spring:
+  application:
+    name: open-platform
+
+  lifecycle:
+    # 优雅停机等待进行中请求完成的最长时间
+    timeout-per-shutdown-phase: 10s
+
+  cache:
+    # 使用 Caffeine 做本地缓存；生产可换 Redis
+    type: caffeine
+
+  data:
+    redis:
+      repositories:
+        # 本项目没有使用 Spring Data Redis Repository，关闭扫描可减少启动日志和耗时
+        enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # 只暴露健康检查和基础信息，避免把 env/beans 等敏感端点暴露出去
+        include: health,info
+  endpoint:
+    health:
+      # 本地开发显示健康明细；生产可按需改回 never
+      show-details: always
+  health:
+    redis:
+      # 骨架阶段没有接入 Redis，关闭检查，避免健康检查误报 DOWN
+      enabled: false
+
+open-platform:
+  auth:
+    # JWT 签发方（iss）与受众（aud），校验时必须完全匹配
+    issuer: open-platform
+    audience: open-api
+    # 外部访问令牌有效期
+    token-ttl: 15m
+    # 内部调用令牌（开放平台 -> 网关）
+    internal-issuer: open-platform
+    internal-audience: internal-gateway
+    internal-ttl: 5m
+    # 允许的机器时钟误差
+    clock-skew: 60s
+    # 是否开启“token 严格一次性”，默认关闭
+    # jti-one-time: false
+
+  replay:
+    # 签名请求时间戳允许的最大偏差
+    timestamp-skew: 5m
+    # nonce 去重记录保留时长，应大于 timestamp-skew
+    nonce-ttl: 10m
+
+  internal:
+    # 内网网关地址；未接真实网关时保持默认即可，不影响启动
+    base-url: http://localhost:8080
+    connect-timeout: 2s
+    read-timeout: 5s
+
+  portal:
+    # 门户登录 token 有效期；与开放 API token 完全隔离
+    token-ttl: 8h
+    # 允许跨域访问门户 API 的前端地址（开发环境 Vite 默认 5173）
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173
+
+logging:
+  level:
+    root: INFO
+    com.crcit.openplatform: INFO
+    # 审计日志专用 logger，可单独采集
+    OPEN_PLATFORM_AUDIT: INFO
+  pattern:
+    # [requestId] 来自 TraceIdFilter 写入的 MDC，便于串联一次请求的所有日志
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [%X{requestId}] %logger{40} - %msg%n"
